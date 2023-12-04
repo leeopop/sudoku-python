@@ -6,6 +6,7 @@ cell_size = 100
 cell_margin = 10
 class Cell:
     def __init__(self, board, key, value=0):
+        self.recently_removed = set()
         if value == 0:
             self.possible = set(range(1, 10))
             self.impossible = set()
@@ -26,7 +27,7 @@ class Cell:
             self.board.canvas_units[key] = obj
             self.possible_text = self.board.canvas.create_text(pos_x+cell_margin, pos_y+1*cell_margin, fill="blue", text="possibles", anchor="nw", font=('Times', 10), width=cell_size-2*cell_margin)
             self.board.canvas.itemconfigure(self.possible_text, state="normal")
-            self.impossible_text = self.board.canvas.create_text(pos_x+cell_margin, pos_y+3*cell_margin, fill="red", text="impossibles", anchor="nw", font=('Times', 10), width=cell_size-2*cell_margin)
+            self.impossible_text = self.board.canvas.create_text(pos_x+cell_margin, pos_y+3*cell_margin, fill="red", text="impossibles\nrecently removed", anchor="nw", font=('Times', 10), width=cell_size-2*cell_margin)
             self.board.canvas.itemconfigure(self.impossible_text, state="normal")
             self.known_text = self.board.canvas.create_text(pos_x+cell_size/2, pos_y+cell_size/2, fill="black", text="known", anchor="center", font=('Times', 24), width=cell_size-2*cell_margin)
             self.board.canvas.itemconfigure(self.known_text, state="hidden")
@@ -43,11 +44,14 @@ class Cell:
             else:
                 possible_list = list(self.possible)
                 possible_list.sort()
-                impossible_list = list(self.impossible)
+                prev_impossibles = self.impossible.difference(self.recently_removed)
+                impossible_list = list(prev_impossibles)
                 impossible_list.sort()
+                recent_impossibles = list(self.recently_removed)
+                recent_impossibles.sort()
                 self.board.canvas.itemconfigure(self.known_text, state="hidden")
                 self.board.canvas.itemconfigure(self.possible_text, state="normal",text=" ".join(map(str, possible_list)))
-                self.board.canvas.itemconfigure(self.impossible_text, state="normal",text=" ".join(map(str, impossible_list)))
+                self.board.canvas.itemconfigure(self.impossible_text, state="normal",text=" ".join(map(str, prev_impossibles)) + "\n" + " ".join(map(str, recent_impossibles)))
 
     def copy(self, new_board):
         new_cell = Cell(new_board, self.key, self.value)
@@ -61,12 +65,14 @@ class Cell:
             to_remove = value.intersection(self.possible)
             if len(to_remove) > 0:
                 self.possible = self.possible.difference(to_remove)
-                self.impossible = self.impossible.union(to_remove)
+                self.impossible = self.impossible.union(to_remove)    
+                self.recently_removed = self.recently_removed.union(to_remove)
                 ret = True
         elif isinstance(value, int):
             if value in self.possible:
                 self.possible.remove(value)
                 self.impossible.add(value)
+                self.recently_removed.add(value)
                 ret = True
         else:
             raise Exception("Invalid type for value")
@@ -181,6 +187,10 @@ class Sudoku:
                 self.canvas.itemconfigure(obj, state="hidden")
             for obj in self.canvas_interests.values():
                 self.canvas.itemconfigure(obj, state="hidden")
+        
+        for cell in self.all_cells.values():
+            cell.recently_removed.clear()
+            cell.update_text()
 
     def mark_changed(self, cell_key):
         self.changed.add(cell_key)
