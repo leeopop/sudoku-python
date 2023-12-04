@@ -2,8 +2,9 @@
 from collections import defaultdict
 import itertools
 
-cell_size = 100
-cell_margin = 10
+cell_size = 60
+cell_margin = 6
+font_size = 6
 class Cell:
     def __init__(self, board, key, value=0):
         self.recently_removed = set()
@@ -20,18 +21,18 @@ class Cell:
 
         if self.board.canvas is not None:
             row, col = key
-            pos_x = col*cell_size
-            pos_y = row*cell_size
+            pos_x = col*cell_size - cell_size + cell_margin
+            pos_y = row*cell_size - cell_size + cell_margin
             self.board.canvas.create_rectangle(pos_x, pos_y, pos_x + cell_size, pos_y + cell_size)
             obj = self.board.canvas.create_rectangle(pos_x, pos_y, pos_x + cell_size, pos_y + cell_size, fill="lightblue")
             self.board.canvas_units[key] = obj
-            self.possible_text = self.board.canvas.create_text(pos_x+cell_margin, pos_y+1*cell_margin, fill="blue", text="possibles", anchor="nw", font=('Times', 10), width=cell_size-2*cell_margin)
+            self.possible_text = self.board.canvas.create_text(pos_x+cell_margin, pos_y+1*cell_margin, fill="blue", text="possibles", anchor="nw", font=('Times', font_size), width=cell_size-2*cell_margin)
             self.board.canvas.itemconfigure(self.possible_text, state="normal")
-            self.impossible_text = self.board.canvas.create_text(pos_x+cell_margin, pos_y+3*cell_margin, fill="red", text="impossibles\nrecently removed", anchor="nw", font=('Times', 10), width=cell_size-2*cell_margin)
+            self.impossible_text = self.board.canvas.create_text(pos_x+cell_margin, pos_y+3*cell_margin, fill="red", text="impossibles\nrecent", anchor="nw", font=('Times', font_size), width=cell_size-2*cell_margin)
             self.board.canvas.itemconfigure(self.impossible_text, state="normal")
-            self.known_text = self.board.canvas.create_text(pos_x+cell_size/2, pos_y+cell_size/2, fill="black", text="known", anchor="center", font=('Times', 24), width=cell_size-2*cell_margin)
+            self.known_text = self.board.canvas.create_text(pos_x+cell_size/2, pos_y+cell_size/2, fill="black", text="known", anchor="center", font=('Times', font_size*2), width=cell_size-2*cell_margin)
             self.board.canvas.itemconfigure(self.known_text, state="hidden")
-            obj = self.board.canvas.create_text(pos_x+cell_margin, pos_y+6.5*cell_margin, fill="purple", text="interest", anchor="nw", font=('Times', 10), width=cell_size-2*cell_margin)
+            obj = self.board.canvas.create_text(pos_x+cell_margin, pos_y+6.5*cell_margin, fill="purple", text="interest", anchor="nw", font=('Times', font_size), width=cell_size-2*cell_margin)
             self.board.canvas_interests[key] = obj
     pass
 
@@ -136,26 +137,26 @@ class Sudoku:
         if init:
             try:
                 import tkinter
-                self.canvas = tkinter.Canvas(width=1024, height=1024)
+                self.canvas = tkinter.Canvas(width=cell_size*12, height=cell_size*12)
                 for row in range(3):
                     for col in range(3):
                         key = (-row-1, -col-1)
                         rect_size = cell_size * 3
-                        pos_x = col * rect_size + cell_size
-                        pox_y = row * rect_size + cell_size
+                        pos_x = col * rect_size + cell_size - cell_size + cell_margin
+                        pox_y = row * rect_size + cell_size - cell_size + cell_margin
                         self.canvas.create_rectangle(pos_x, pox_y, pos_x + rect_size, pox_y + rect_size, outline="black", width=3) # Won't be changed
                         obj = self.canvas.create_rectangle(pos_x, pox_y, pos_x + rect_size, pox_y + rect_size, state="hidden", fill="lightblue", width=5, outline="purple")
                         self.canvas_units[key] = obj
                 for row in range(1, 10):
                     key = (-row, 0)
-                    pos_x = cell_size
-                    pox_y = row * cell_size
+                    pos_x = cell_size - cell_size + cell_margin
+                    pox_y = row * cell_size - cell_size + cell_margin
                     obj = self.canvas.create_rectangle(pos_x, pox_y, pos_x + cell_size*9, pox_y + cell_size, state="hidden", fill="lightblue", width=5, outline="purple")
                     self.canvas_units[key] = obj
                 for col in range(1, 10):
                     key = (0, -col)
-                    pos_x = col * cell_size
-                    pox_y = cell_size
+                    pos_x = col * cell_size - cell_size + cell_margin
+                    pox_y = cell_size - cell_size + cell_margin
                     obj = self.canvas.create_rectangle(pos_x, pox_y, pos_x + cell_size, pox_y + cell_size*9, state="hidden", fill="lightblue", width=5, outline="purple")
                     self.canvas_units[key] = obj
                 self.canvas.pack()
@@ -495,16 +496,23 @@ class Sudoku:
                             new_impossibles.append((check_key, intersect))
                     if len(new_impossibles) > 0 or len(fatal) > 0:
                         self.print("For any possible value from", cell_key, possibles)
-                    for (cell_key, val, msg) in fatal:
-                        self.print("\tAssuming %s as %d causes %s" % (str(cell_key), val, msg))
-                    for check_key, intersect in new_impossibles:
-                        cell = self.get_cell(check_key)
-                        self.print("\tImpossible", check_key, intersect)
-                        if cell.remove_possible(intersect):
+                        remaining_possibles = set(possibles)
+                        for (cell_key, val, msg) in fatal:
+                            self.print("\tAssuming %s as %d causes %s" % (str(cell_key), val, msg))
+                            remaining_possibles.remove(val)
+                        if len(remaining_possibles) == 1:
+                            uniq_possible = remaining_possibles.pop()
+                            self.print("\t{} is the unique possibility among {}".format(uniq_possible, possibles))
+                            self.set_cell(cell_key, uniq_possible)
                             updated_once = True
-                            break
-                        self.wait_for_next_setep()
+                        else:
+                            for check_key, intersect in new_impossibles:
+                                cell = self.get_cell(check_key)
+                                self.print("\tImpossible", check_key, intersect)
+                                if cell.remove_possible(intersect):
+                                    updated_once = True
                     if updated_once:
+                        self.wait_for_next_setep(interest_cells=[cell_key], interest_values=possibles, interest_name="Try")
                         break
             if not updated_once:
                 break
@@ -635,7 +643,7 @@ def main():
             index += 1
     
     print("Done input")
-    sudoku.solve_unique(sudoku.peek_changed())
+    sudoku.solve_unique(sudoku.take_unknown_keys())
     sudoku.set_print(True)
     sudoku.set_wait_user(True)
     sudoku.wait_for_next_setep()
